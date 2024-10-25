@@ -1,0 +1,84 @@
+CREATE TABLE inventory (
+    item_id          NUMBER PRIMARY KEY,
+    item_name        VARCHAR2(50),
+    stock_level      NUMBER,
+    reorder_point    NUMBER,
+    reorder_quantity NUMBER
+);
+
+-- Procedure for Checking Inventory Levels: This procedure checks each item’s stock level and, if it’s below the reorder point, adds it to the reorder list.
+
+CREATE OR REPLACE PROCEDURE check_inventory_levels IS
+    CURSOR low_stock_cursor IS
+        SELECT item_id, item_name, reorder_quantity
+        FROM inventory
+        WHERE stock_level <= reorder_point;
+
+    TYPE reorder_type IS TABLE OF low_stock_cursor%ROWTYPE;
+    reorder_list reorder_type;
+BEGIN
+    OPEN low_stock_cursor;
+    FETCH low_stock_cursor BULK COLLECT INTO reorder_list;
+    CLOSE low_stock_cursor;
+
+    -- Loop through the reorder list and display items that need reordering
+    IF reorder_list.COUNT > 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Items to reorder:');
+        FOR i IN 1 .. reorder_list.COUNT LOOP
+            DBMS_OUTPUT.PUT_LINE('Item: ' || reorder_list(i).item_name || 
+                                 ' | Reorder Quantity: ' || reorder_list(i).reorder_quantity);
+            -- Here you could add code to create a reorder request in a related table
+        END LOOP;
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('All items are sufficiently stocked.');
+    END IF;
+END;
+/
+
+-- Trigger for Auto-Reorder Notification: This trigger sends a notification when an item’s stock level is updated to below the reorder point.
+
+CREATE OR REPLACE TRIGGER trg_auto_reorder_notification
+AFTER UPDATE OF stock_level ON inventory
+FOR EACH ROW
+WHEN (NEW.stock_level <= NEW.reorder_point)
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Item ID ' || :NEW.item_id || 
+                         ' ( ' || :NEW.item_name || ' ) is below reorder point. Reorder needed.');
+END;
+/
+
+--Reorder Items: Procedure to simulate ordering items in low stock.
+
+CREATE OR REPLACE PROCEDURE reorder_items IS
+    CURSOR reorder_cursor IS
+        SELECT item_id, reorder_quantity
+        FROM inventory
+        WHERE stock_level <= reorder_point;
+
+BEGIN
+    FOR item IN reorder_cursor LOOP
+        UPDATE inventory
+        SET stock_level = stock_level + item.reorder_quantity
+        WHERE item_id = item.item_id;
+        
+        DBMS_OUTPUT.PUT_LINE('Reordered item ID ' || item.item_id || 
+                             ' with quantity ' || item.reorder_quantity);
+    END LOOP;
+END;
+/
+
+--Testing the System: Insert test data and execute the procedures to see them in action.
+
+-- Insert sample data
+INSERT INTO inventory VALUES (1, 'Item_A', 5, 10, 20);
+INSERT INTO inventory VALUES (2, 'Item_B', 15, 20, 30);
+INSERT INTO inventory VALUES (3, 'Item_C', 8, 12, 15);
+COMMIT;
+
+-- Run the check inventory levels procedure
+EXEC check_inventory_levels;
+
+-- Reorder items below the threshold
+EXEC reorder_items;
+
+
