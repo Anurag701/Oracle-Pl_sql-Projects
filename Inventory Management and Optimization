@@ -1,3 +1,4 @@
+-- Define a table to store inventory data
 CREATE TABLE inventory (
     item_id          NUMBER PRIMARY KEY,
     item_name        VARCHAR2(50),
