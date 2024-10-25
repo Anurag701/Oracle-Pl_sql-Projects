@@ -1,3 +1,6 @@
+/* The system checks inventory levels, triggers reordering when levels are low,
+and generates a reorder report for items below the threshold. */
+
 -- Define a table to store inventory data
 CREATE TABLE inventory (
     item_id          NUMBER PRIMARY KEY,
