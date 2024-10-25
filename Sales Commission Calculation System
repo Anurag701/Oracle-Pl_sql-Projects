@@ -1,0 +1,96 @@
+/* In this project, we'll calculate sales commissions based on certain conditions, such as sales amount and region.
+We'll create a sample schema and implement PL/SQL procedures to calculate the commission for each salesperson based on predefined rules. */
+
+-- Table to store sales representatives
+CREATE TABLE sales_representatives (
+    rep_id NUMBER PRIMARY KEY,
+    rep_name VARCHAR2(50),
+    region VARCHAR2(20)
+);
+
+-- Table to store sales transactions
+CREATE TABLE sales_transactions (
+    transaction_id NUMBER PRIMARY KEY,
+    rep_id NUMBER,
+    sales_amount NUMBER,
+    transaction_date DATE,
+    FOREIGN KEY (rep_id) REFERENCES sales_representatives(rep_id)
+);
+
+-- Table to store commission rules
+CREATE TABLE commission_rules (
+    rule_id NUMBER PRIMARY KEY,
+    min_sales_amount NUMBER,
+    max_sales_amount NUMBER,
+    commission_rate NUMBER
+);
+
+-- Insert some sample data to test the commission calculation.
+
+-- Sample sales representatives
+INSERT INTO sales_representatives (rep_id, rep_name, region) VALUES (1, 'Alice', 'East');
+INSERT INTO sales_representatives (rep_id, rep_name, region) VALUES (2, 'Bob', 'West');
+
+-- Sample sales transactions
+INSERT INTO sales_transactions (transaction_id, rep_id, sales_amount, transaction_date)
+VALUES (101, 1, 5000, SYSDATE);
+INSERT INTO sales_transactions (transaction_id, rep_id, sales_amount, transaction_date)
+VALUES (102, 2, 15000, SYSDATE);
+
+-- Sample commission rules
+INSERT INTO commission_rules (rule_id, min_sales_amount, max_sales_amount, commission_rate)
+VALUES (1, 0, 5000, 0.05);
+INSERT INTO commission_rules (rule_id, min_sales_amount, max_sales_amount, commission_rate)
+VALUES (2, 5001, 15000, 0.07);
+INSERT INTO commission_rules (rule_id, min_sales_amount, max_sales_amount, commission_rate)
+VALUES (3, 15001, 50000, 0.10);
+
+COMMIT;
+
+
+--This procedure calculates commission based on sales amount, looks up the commission rate from the commission_rules table, and applies the rate accordingly.
+
+CREATE OR REPLACE PROCEDURE calculate_commission_for_rep (
+    p_rep_id IN NUMBER
+) IS
+    l_sales_amount NUMBER;
+    l_commission_rate NUMBER;
+    l_commission NUMBER;
+BEGIN
+    -- Cursor to fetch sales amounts for the given sales representative
+    FOR sales_rec IN (
+        SELECT st.sales_amount
+        FROM sales_transactions st
+        WHERE st.rep_id = p_rep_id
+    ) LOOP
+        -- Fetch the appropriate commission rate based on sales amount
+        SELECT cr.commission_rate
+        INTO l_commission_rate
+        FROM commission_rules cr
+        WHERE sales_rec.sales_amount BETWEEN cr.min_sales_amount AND cr.max_sales_amount;
+        
+        -- Calculate commission
+        l_commission := sales_rec.sales_amount * l_commission_rate;
+        
+        -- Output the commission for this transaction
+        DBMS_OUTPUT.PUT_LINE('Commission for transaction amount ' || sales_rec.sales_amount || ' is ' || l_commission);
+    END LOOP;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No matching commission rate found for sales amount.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('An unexpected error occurred: ' || SQLERRM);
+END calculate_commission_for_rep;
+/
+
+
+--To test the procedure, you can call it for each representative to see how the commission is calculated based on the sales_transactions and commission_rules.
+
+-- Enable DBMS_OUTPUT for testing purposes
+SET SERVEROUTPUT ON;
+
+-- Calculate commission for sales representative with rep_id = 1
+EXEC calculate_commission_for_rep(1);
+
+-- Calculate commission for sales representative with rep_id = 2
+EXEC calculate_commission_for_rep(2);
