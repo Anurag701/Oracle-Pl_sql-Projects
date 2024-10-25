@@ -1,0 +1,90 @@
+/*The goal of this project is to develop a PL/SQL procedure that compares data between two tables 
+(source and target) and identifies any discrepancies. The procedure will generate a report listing rows that differ between the tables. */
+
+-- We'll create two tables, source_data and target_data, to simulate data in two different systems or databases.
+
+-- Table to store source data
+CREATE TABLE source_data (
+    record_id NUMBER PRIMARY KEY,
+    data_value VARCHAR2(50),
+    last_updated DATE
+);
+
+-- Table to store target data
+CREATE TABLE target_data (
+    record_id NUMBER PRIMARY KEY,
+    data_value VARCHAR2(50),
+    last_updated DATE
+);
+
+--We’ll insert sample data into both tables, with some intentional discrepancies to test the reconciliation tool.
+
+-- Insert sample data into source_data
+INSERT INTO source_data (record_id, data_value, last_updated) VALUES (1, 'Value1', SYSDATE);
+INSERT INTO source_data (record_id, data_value, last_updated) VALUES (2, 'Value2', SYSDATE);
+INSERT INTO source_data (record_id, data_value, last_updated) VALUES (3, 'Value3', SYSDATE);
+
+-- Insert sample data into target_data with discrepancies
+INSERT INTO target_data (record_id, data_value, last_updated) VALUES (1, 'Value1', SYSDATE);
+INSERT INTO target_data (record_id, data_value, last_updated) VALUES (2, 'DifferentValue', SYSDATE);
+INSERT INTO target_data (record_id, data_value, last_updated) VALUES (4, 'ExtraValue', SYSDATE);
+
+COMMIT;
+
+--This table will store the reconciliation results, showing any records with discrepancies.
+
+-- Table to store reconciliation report
+CREATE TABLE reconciliation_report (
+    record_id NUMBER,
+    source_value VARCHAR2(50),
+    target_value VARCHAR2(50),
+    issue VARCHAR2(100),
+    report_date DATE DEFAULT SYSDATE
+);
+
+--This procedure will compare records in source_data and target_data and identify mismatches based on record_id and data_value.
+
+CREATE OR REPLACE PROCEDURE reconcile_data IS
+BEGIN
+    -- Step 1: Find records in source_data but missing in target_data
+    INSERT INTO reconciliation_report (record_id, source_value, target_value, issue)
+    SELECT s.record_id, s.data_value, NULL, 'Missing in Target'
+    FROM source_data s
+    LEFT JOIN target_data t ON s.record_id = t.record_id
+    WHERE t.record_id IS NULL;
+
+    -- Step 2: Find records in target_data but missing in source_data
+    INSERT INTO reconciliation_report (record_id, source_value, target_value, issue)
+    SELECT t.record_id, NULL, t.data_value, 'Extra in Target'
+    FROM target_data t
+    LEFT JOIN source_data s ON t.record_id = s.record_id
+    WHERE s.record_id IS NULL;
+
+    -- Step 3: Find records that exist in both tables but have different values
+    INSERT INTO reconciliation_report (record_id, source_value, target_value, issue)
+    SELECT s.record_id, s.data_value, t.data_value, 'Mismatch in Data'
+    FROM source_data s
+    JOIN target_data t ON s.record_id = t.record_id
+    WHERE s.data_value <> t.data_value;
+
+    -- Commit the reconciliation report
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Data reconciliation completed successfully.');
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('An error occurred during reconciliation: ' || SQLERRM);
+END reconcile_data;
+/
+
+
+--Run the reconcile_data procedure to generate the reconciliation report and identify any discrepancies.
+
+-- Enable DBMS_OUTPUT for testing purposes
+SET SERVEROUTPUT ON;
+
+-- Execute the reconciliation procedure
+EXEC reconcile_data;
+
+-- View the reconciliation report
+SELECT * FROM reconciliation_report;
